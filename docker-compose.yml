@@ -1,0 +1,26 @@
+version: "3"
+services:
+  04_nvr:
+    container_name: 04_webrtc
+    restart: always
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+        TZ: "Asia/Seoul"
+#    ports:
+#      - 2000:1984
+#      - 12003:22
+    network_mode: host       # important for WebRTC, HomeKit, UDP cameras
+    volumes:
+      - ./config:/config
+    restart: always
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: 0
+            capabilities: [gpu, utility, compute, video]
+
+#=============================================================================

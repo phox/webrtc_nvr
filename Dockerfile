@@ -1,61 +1,69 @@
-# syntax=docker/dockerfile:labs
+FROM nvidia/cuda:12.0.0-devel-ubuntu20.04
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get upgrade -y && apt-get install -y nvidia-cuda-toolkit
+#Time-------------------------------------------------------
+ENV TZ=Asia/Seoul
+RUN apt-get install -y tzdata
+RUN echo $TZ > /etc/timezone && \
+    rm /etc/localtime && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    apt-get clean
+#-----------------------------------------------------------
 
-# 0. Prepare images
-ARG PYTHON_VERSION="3.11"
-ARG GO_VERSION="1.19"
-ARG NGROK_VERSION="3"
+RUN apt-get install -y wget git cmake nano snapd build-essential git yasm unzip wget sysstat nasm libc6 \
+libavcodec-dev libavformat-dev libavutil-dev pkgconf g++ freeglut3-dev \
+libx11-dev libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-good
 
-FROM python:${PYTHON_VERSION}-alpine AS base
-FROM ngrok/ngrok:${NGROK_VERSION}-alpine AS ngrok
+#!----------------------------------------------------------------------------------------------------------ffmpeg
+
+WORKDIR /root
+RUN git clone https://github.com/FFmpeg/nv-codec-headers
+WORKDIR /root/nv-codec-headers
+RUN make && make install
+
+#!----------------------------------------------------------------------------------------------------------h264
+
+WORKDIR /root
+RUN git clone https://code.videolan.org/videolan/x264.git
+WORKDIR /root/x264
+RUN ./configure --disable-cli --enable-static --enable-shared --enable-strip
+RUN make && make install
+RUN ldconfig
+
+#!----------------------------------------------------------------------------------------------------------h265
+
+RUN apt-get install -y libx265-dev libnuma-dev
+
+#!----------------------------------------------------------------------------------------------------------ffmpeg
+
+WORKDIR /root
+RUN git clone git://source.ffmpeg.org/ffmpeg.git ffmpeg
+WORKDIR /root/ffmpeg
+RUN ./configure --enable-nonfree --enable-nvenc --enable-libx264 --enable-libx265 --enable-gpl --enable-cuda --enable-cuvid --enable-cuda-nvcc
+RUN make
+
+RUN ln -s /root/ffmpeg/ffmpeg /usr/local/bin/ffmpeg
+
+#!----------------------------------------------------------------------------------------------------------go2rtc
+
+WORKDIR /root
+RUN wget https://github.com/AlexxIT/go2rtc/releases/download/v1.2.0/go2rtc_linux_amd64
+RUN chmod +x go2rtc_linux_amd64
+
+#!----------------------------------------------------------------------------------------------------------ssh(remote)
+
+RUN apt-get install -y openssh-server
+RUN echo "PermitRootLogin yes \nPasswordAuthentication yes \nChallengeResponseAuthentication no" >> /etc/ssh/sshd_config
+#RUN echo "root:AS!!Dfsa**SADsaSA" | chpasswd
+RUN echo "root:1234" | chpasswd
+RUN service ssh restart
+
+#!----------------------------------------------------------------------------------------------------------------------
 
 
-# 1. Build go2rtc binary
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS build
-ARG TARGETPLATFORM
-ARG TARGETOS
-ARG TARGETARCH
 
-ENV GOOS=${TARGETOS}
-ENV GOARCH=${TARGETARCH}
+#!----------------------------------------------------------------------------------------------------------------------
 
-WORKDIR /build
-
-# Cache dependencies
-COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/root/.cache/go-build go mod download
-
-COPY . .
-RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 go build -ldflags "-s -w" -trimpath
-
-
-# 2. Collect all files
-FROM scratch AS rootfs
-
-COPY --from=build /build/go2rtc /usr/local/bin/
-COPY --from=ngrok /bin/ngrok /usr/local/bin/
-
-
-# 3. Final image
-FROM base
-
-# Install ffmpeg, tini (for signal handling),
-# and other common tools for the echo source.
-RUN apk add --no-cache tini ffmpeg bash curl jq
-
-# Hardware Acceleration for Intel CPU (+50MB)
-ARG TARGETARCH
-
-RUN if [ "${TARGETARCH}" = "amd64" ]; then apk add --no-cache libva-intel-driver intel-media-driver; fi
-
-# Hardware: AMD and NVidia VAAPI (not sure about this)
-# RUN libva-glx mesa-va-gallium
-# Hardware: AMD and NVidia VDPAU (not sure about this)
-# RUN libva-vdpau-driver mesa-vdpau-gallium (+150MB total)
-
-COPY --from=rootfs / /
-
-ENTRYPOINT ["/sbin/tini", "--"]
-VOLUME /config
-WORKDIR /config
-
-CMD ["go2rtc", "-config", "/config/go2rtc.yaml"]
+WORKDIR /root
+ENTRYPOINT ["/bin/sh", "-c" , "service ssh start  && ./go2rtc_linux_amd64"]
