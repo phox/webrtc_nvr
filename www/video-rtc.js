@@ -230,6 +230,7 @@ export class VideoRTC extends HTMLElement {
         this.video.controls = true;
         this.video.playsInline = true;
         this.video.preload = "auto";
+        this.video.controls = false;
 
         this.video.style.display = "block"; // fix bottom margin 4px
         this.video.style.width = "100%";
