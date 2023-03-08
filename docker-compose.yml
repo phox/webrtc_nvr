@@ -13,7 +13,7 @@ services:
 #      - 12003:22
     network_mode: host       # important for WebRTC, HomeKit, UDP cameras
     volumes:
-      - ./config:/config
+      - ./redcord:/root/nvr/record
     restart: always
     deploy:
       resources:
