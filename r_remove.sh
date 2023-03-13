@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cmd="find /root/nvr/record/ -mtime +30 -type f -delete"
+cmd="find /root/nvr/record/ -mtime +1 -type f -delete"
 cmdback="${cmd} &"
 echo $cmd
 echo $cmdback
