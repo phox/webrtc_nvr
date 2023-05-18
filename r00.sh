@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cmd="ffmpeg -hwaccel cuda -correct_ts_overflow 0 -r 15 -i rtsp://user01:1234@10.3.129.74:12100/stream0 -c copy -f segment -segment_time 3600 -segment_format mp4 -strftime 1 -r 15 /root/nvr/record/stream0-%Y%m%d_%H%M%S.mp4"
+cmd="ffmpeg -hwaccel cuda -correct_ts_overflow 0 -r 15 -i rtsp://user01:1234@10.3.129.74:12100/stream0 -c copy -f segment -segment_time 300 -segment_format mp4 -strftime 1 -r 15 /root/nvr/record/stream0-%Y%m%d_%H%M%S.mp4"
 cmdback="${cmd} &"
 echo $cmd
 echo $cmdback
